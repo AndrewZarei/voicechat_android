@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.solvoice.models.*
 import com.example.solvoice.services.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -53,10 +54,13 @@ class VoiceChatViewModel(application: Application) : AndroidViewModel(applicatio
                 // Initialize audio manager
                 audioManager.initialize()
                 
+                // Get initial balance
+                updateWalletBalance()
+                
                 _uiState.update { 
                     it.copy(
                         isLoading = false,
-                        status = "Services initialized. Ready to start.",
+                        status = "Services initialized. Check your SOL balance.",
                         isSystemInitialized = true,
                         userWalletAddress = solanaClient.getUserPublicKey()
                     )
@@ -493,6 +497,99 @@ class VoiceChatViewModel(application: Application) : AndroidViewModel(applicatio
     }
     
     /**
+     * Update wallet balance
+     */
+    fun updateWalletBalance() {
+        viewModelScope.launch {
+            try {
+                val result = solanaClient.getBalance()
+                
+                when (result) {
+                    is Result.Success -> {
+                        _uiState.update { 
+                            it.copy(
+                                walletBalance = result.data,
+                                status = if (result.data < 0.1) {
+                                    "Low SOL balance (${String.format("%.4f", result.data)} SOL). Request airdrop!"
+                                } else {
+                                    "Wallet balance: ${String.format("%.4f", result.data)} SOL"
+                                }
+                            )
+                        }
+                    }
+                    is Result.Error -> {
+                        _uiState.update { 
+                            it.copy(
+                                walletBalance = 0.0,
+                                status = "Failed to get balance: ${result.exception.message}"
+                            )
+                        }
+                        _errorMessages.emit("Failed to get wallet balance: ${result.exception.message}")
+                    }
+                    else -> {}
+                }
+            } catch (e: Exception) {
+                _errorMessages.emit("Error getting balance: ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * Request SOL airdrop from devnet faucet
+     */
+    fun requestAirdrop(amount: Double = 2.0) {
+        viewModelScope.launch {
+            try {
+                _uiState.update { 
+                    it.copy(
+                        isLoading = true,
+                        status = "Requesting ${amount} SOL airdrop from devnet faucet..."
+                    )
+                }
+                
+                val result = solanaClient.requestAirdrop(amount)
+                
+                when (result) {
+                    is Result.Success -> {
+                        _uiState.update { 
+                            it.copy(
+                                isLoading = false,
+                                status = "Airdrop successful! Updating balance..."
+                            )
+                        }
+                        
+                        // Wait a moment for balance to update
+                        delay(2000)
+                        updateWalletBalance()
+                        
+                        _successMessages.emit("Successfully received ${amount} SOL airdrop!")
+                    }
+                    is Result.Error -> {
+                        _uiState.update { 
+                            it.copy(
+                                isLoading = false,
+                                error = result.exception.message,
+                                status = "Airdrop failed"
+                            )
+                        }
+                        _errorMessages.emit("Airdrop failed: ${result.exception.message}")
+                    }
+                    else -> {}
+                }
+            } catch (e: Exception) {
+                _uiState.update { 
+                    it.copy(
+                        isLoading = false,
+                        error = e.message,
+                        status = "Airdrop error"
+                    )
+                }
+                _errorMessages.emit("Airdrop error: ${e.message}")
+            }
+        }
+    }
+    
+    /**
      * Format duration in milliseconds to MM:SS
      */
     private fun formatDuration(durationMs: Long): String {
@@ -531,6 +628,7 @@ data class VoiceChatUiState(
     val status: String = "Welcome to Voice Chat dApp",
     val error: String? = null,
     val userWalletAddress: String? = null,
+    val walletBalance: Double = 0.0,
     val roomId: String = "Not in room",
     val participantCount: Int = 0,
     val recordingStatus: String = "Ready",

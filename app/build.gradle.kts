@@ -74,8 +74,8 @@ dependencies {
     implementation("org.bitcoinj:bitcoinj-core:0.16.2")
     implementation("com.google.guava:guava:32.1.3-android")
     
-    // Base58 encoding (needed for Solana addresses)
-    implementation("org.apache.commons:commons-codec:1.15")
+    // Base58 encoding (needed for Solana addresses) - included in bitcoinj
+    // Note: bitcoinj-core already includes Base58 encoding support
     
     // Audio recording and playback
     implementation("androidx.media:media:1.7.0")

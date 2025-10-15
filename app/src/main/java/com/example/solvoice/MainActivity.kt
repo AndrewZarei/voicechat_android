@@ -34,6 +34,7 @@ import com.example.solvoice.models.StoragePDA
 import com.example.solvoice.services.StorageStats
 import com.example.solvoice.ui.theme.SolvoiceTheme
 import com.example.solvoice.viewmodels.VoiceChatViewModel
+import com.example.solvoice.viewmodels.VoiceChatUiState
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -112,6 +113,16 @@ fun VoiceChatApp(viewModel: VoiceChatViewModel) {
             // Status Section
             item {
                 StatusCard(uiState = uiState)
+            }
+            
+            // Wallet Management Section
+            item {
+                WalletManagementCard(
+                    uiState = uiState,
+                    onRequestAirdrop = { viewModel.requestAirdrop(2.0) },
+                    onRefreshBalance = { viewModel.updateWalletBalance() },
+                    isLoading = uiState.isLoading
+                )
             }
             
             // System Initialization Section
@@ -203,6 +214,7 @@ fun StatusCard(uiState: VoiceChatUiState) {
             
             StatusRow("Status", uiState.status)
             StatusRow("Wallet", uiState.userWalletAddress?.take(8)?.plus("...") ?: "Not connected")
+            StatusRow("Balance", "${String.format("%.4f", uiState.walletBalance)} SOL")
             StatusRow("Room", uiState.roomId)
             StatusRow("Storage", uiState.totalStorage)
             StatusRow("Recording", uiState.recordingStatus)
@@ -233,6 +245,123 @@ fun StatusCard(uiState: VoiceChatUiState) {
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun WalletManagementCard(
+    uiState: VoiceChatUiState,
+    onRequestAirdrop: () -> Unit,
+    onRefreshBalance: () -> Unit,
+    isLoading: Boolean
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (uiState.walletBalance < 0.1) 
+                MaterialTheme.colorScheme.errorContainer 
+            else MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "💰 Wallet Management",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Wallet info
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Address: ${uiState.userWalletAddress?.take(12)?.plus("...") ?: "Not connected"}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "Balance: ${String.format("%.4f", uiState.walletBalance)} SOL",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (uiState.walletBalance < 0.1) 
+                            MaterialTheme.colorScheme.error 
+                        else MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                IconButton(onClick = onRefreshBalance) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Refresh Balance"
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Balance status and actions
+            if (uiState.walletBalance < 0.1) {
+                Text(
+                    text = "⚠️ Low SOL balance! You need SOL to create storage PDAs and send transactions.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onRequestAirdrop,
+                    enabled = !isLoading,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Icon(Icons.Default.CloudDownload, contentDescription = null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Request 2 SOL Airdrop")
+                }
+                
+                Button(
+                    onClick = onRefreshBalance,
+                    enabled = !isLoading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Refresh")
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "💡 Tip: You need at least 0.1 SOL to create storage PDAs and send voice messages. Use the airdrop button to get free SOL on devnet.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
